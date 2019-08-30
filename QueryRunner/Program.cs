@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Globalization;
 using System.Threading.Tasks;
 
@@ -20,15 +21,24 @@ namespace QueryRunner
                 IntegratedSecurity = true
             };
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var iterations = 5;
+            var times = new double[iterations];
+
+            for (var i = 0; i < iterations; i++)
+            {
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             var connectionString = sqlConnectionStringBuilder.ToString();
             await WriteMassiveBatch(connectionString, 1_000_000).ConfigureAwait(false);
 
-            stopwatch.Stop();
-            var elapsed = stopwatch.Elapsed.TotalSeconds;
-            Console.Write($"Elapsed Second: {elapsed}");
+                stopwatch.Stop();
+                var elapsed = stopwatch.Elapsed.TotalSeconds;
+                times[i] = elapsed;
+                Console.Write($"Elapsed Second: {elapsed} (Iteration {i})");
+            }
 
+            var average = times.Sum(q => q) / iterations;
+            Console.WriteLine($"Average across {iterations} iterations: {average}");
         }
 
         private static DataTable CreateDataTable()
