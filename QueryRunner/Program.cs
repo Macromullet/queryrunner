@@ -1,11 +1,9 @@
 ﻿using Dapper;
 using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Data.SqlClient;
-using System.Linq;
 using System.Globalization;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace QueryRunner
@@ -53,7 +51,7 @@ namespace QueryRunner
         private static Task WriteMassiveBatch(string connectionString, int rowsToInsert)
         {
             using var dataTable = CreateDataTable();
-            for (int i=0;i<rowsToInsert;i++)
+            for (var i = 0; i < rowsToInsert; i++)
             {
                 var dataRow = dataTable.NewRow();
                 var indexString = i.ToString(CultureInfo.InvariantCulture);
