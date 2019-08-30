@@ -28,8 +28,8 @@ namespace QueryRunner
             {
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var connectionString = sqlConnectionStringBuilder.ToString();
-            await WriteMassiveBatch(connectionString, 1_000_000).ConfigureAwait(false);
+                var connectionString = sqlConnectionStringBuilder.ToString();
+                await WriteMassiveBatch(connectionString, 1_000_000).ConfigureAwait(false);
 
                 stopwatch.Stop();
                 var elapsed = stopwatch.Elapsed.TotalSeconds;
