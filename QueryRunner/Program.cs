@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace QueryRunner
@@ -30,16 +31,25 @@ ON [member].[member_no] = [payment].[member_no];";
                 IntegratedSecurity = true
             };
 
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var iterations = 5;
+            var times = new double[iterations];
 
-            var connectionString = sqlConnectionStringBuilder.ToString();
-            //await RunQueryInParallelAsync(connectionString, _query, 100000, 8);
-            await WriteMassiveBatch(connectionString, 1_000_000);
+            for (var i = 0; i < iterations; i++)
+            {
+                var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            stopwatch.Stop();
-            var elapsed = stopwatch.Elapsed.TotalSeconds;
-            Console.Write($"Elapsed Second: {elapsed}");
+                var connectionString = sqlConnectionStringBuilder.ToString();
+                //await RunQueryInParallelAsync(connectionString, _query, 100000, 8);
+                await WriteMassiveBatch(connectionString, 1_000_000);
 
+                stopwatch.Stop();
+                var elapsed = stopwatch.Elapsed.TotalSeconds;
+                times[i] = elapsed;
+                Console.Write($"Elapsed Second: {elapsed} (Iteration {i})");
+            }
+
+            var average = times.Sum(q => q) / iterations;
+            Console.WriteLine($"Average across {iterations} iterations: {average}");
         }
 
         private static DataTable CreateDataTable()
