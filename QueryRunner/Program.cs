@@ -1,5 +1,6 @@
 ﻿using Dapper;
 using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Globalization;
@@ -19,7 +20,7 @@ namespace QueryRunner
                 IntegratedSecurity = true
             };
 
-            var iterations = 5;
+            var iterations = 4;
             var times = new double[iterations];
 
             for (var i = 0; i < iterations; i++)
@@ -27,12 +28,13 @@ namespace QueryRunner
                 var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
                 var connectionString = sqlConnectionStringBuilder.ToString();
-                await WriteMassiveBatch(connectionString, 1_000_000).ConfigureAwait(false);
+                var tasks = WriteMassiveBatch(connectionString, 1_000_000, Environment.ProcessorCount);
+                await Task.WhenAll(tasks).ConfigureAwait(false);
 
                 stopwatch.Stop();
                 var elapsed = stopwatch.Elapsed.TotalSeconds;
                 times[i] = elapsed;
-                Console.Write($"Elapsed Second: {elapsed} (Iteration {i})");
+                Console.WriteLine($"Elapsed Second: {elapsed} (Iteration {i})");
             }
 
             var average = times.Sum(q => q) / iterations;
@@ -48,38 +50,47 @@ namespace QueryRunner
             return table;
         }
 
-        private static Task WriteMassiveBatch(string connectionString, int rowsToInsert)
+        private static List<Task> WriteMassiveBatch(string connectionString, int rowsToInsert, int threads = 1)
         {
-            using var dataTable = CreateDataTable();
-            for (var i = 0; i < rowsToInsert; i++)
+            var tasks = new List<Task>();
+            for (int thread = 0; thread < threads; thread++)
             {
-                var dataRow = dataTable.NewRow();
-                var indexString = i.ToString(CultureInfo.InvariantCulture);
-                dataRow[0] = "rowa" + indexString;
-                dataRow[1] = "rowb" + indexString;
-                dataRow[2] = "rowc" + indexString;
-                dataTable.Rows.Add(dataRow);
-            }
-            using (var sqlConnection = new SqlConnection(connectionString))
-            {
-                sqlConnection.Open();
-                sqlConnection.Execute("TRUNCATE TABLE TargetTable");
-                using var sqlTransaction = sqlConnection.BeginTransaction();
-                using (var sqlDataAdapter = new SqlDataAdapter())
+                var task = Task.Run(() =>
                 {
-                    sqlDataAdapter.UpdateBatchSize = 1000;
-                    using var sqlCommand = GetSqlCommand(dataTable.TableName);
-                    sqlCommand.Connection = sqlConnection;
-                    sqlCommand.Transaction = sqlTransaction;
-                    sqlDataAdapter.InsertCommand = sqlCommand;
-                    sqlDataAdapter.Update(dataTable);
-                    sqlTransaction.Commit();
-                }
+                    using var dataTable = CreateDataTable();
+                    for (var i = thread; i < rowsToInsert; i += threads)
+                    {
+                        var dataRow = dataTable.NewRow();
+                        var indexString = i.ToString(CultureInfo.InvariantCulture);
+                        dataRow[0] = "rowa" + indexString;
+                        dataRow[1] = "rowb" + indexString;
+                        dataRow[2] = "rowc" + indexString;
+                        dataTable.Rows.Add(dataRow);
+                    }
+                    using (var sqlConnection = new SqlConnection(connectionString))
+                    {
+                        sqlConnection.Open();
+                        sqlConnection.Execute("TRUNCATE TABLE TargetTable");
+                        using var sqlTransaction = sqlConnection.BeginTransaction();
+                        using (var sqlDataAdapter = new SqlDataAdapter())
+                        {
+                            using var sqlCommand = GetSqlCommand(dataTable.TableName);
+                            sqlCommand.Connection = sqlConnection;
+                            sqlCommand.Transaction = sqlTransaction;
+                            sqlDataAdapter.InsertCommand = sqlCommand;
+                            sqlDataAdapter.UpdateBatchSize = 1000;
+                            sqlDataAdapter.Update(dataTable);
+                            sqlTransaction.Commit();
+                        }
 
-                dataTable.Clear();
+                        dataTable.Clear();
+                    }
+                });
+
+                tasks.Add(task);
             }
 
-            return Task.CompletedTask;
+            return tasks;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>")]
