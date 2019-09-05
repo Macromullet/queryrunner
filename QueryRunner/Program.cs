@@ -44,9 +44,14 @@ namespace QueryRunner
         private static DataTable CreateDataTable()
         {
             var table = new DataTable { TableName = "TargetTable" };
-            table.Columns.Add("Column1", typeof(string));
-            table.Columns.Add("Column2", typeof(string));
-            table.Columns.Add("Column3", typeof(string));
+            var column1 = table.Columns.Add("Column1", typeof(string));
+            column1.MaxLength = 50;
+
+            var column2 = table.Columns.Add("Column2", typeof(string));
+            column2.MaxLength = 50;
+
+            var column3 = table.Columns.Add("Column3", typeof(string));
+            column3.MaxLength = 50;
             return table;
         }
 
@@ -71,17 +76,8 @@ namespace QueryRunner
                     {
                         sqlConnection.Open();
                         sqlConnection.Execute("TRUNCATE TABLE TargetTable");
-                        using var sqlTransaction = sqlConnection.BeginTransaction();
-                        using (var sqlDataAdapter = new SqlDataAdapter())
-                        {
-                            using var sqlCommand = GetSqlCommand(dataTable.TableName);
-                            sqlCommand.Connection = sqlConnection;
-                            sqlCommand.Transaction = sqlTransaction;
-                            sqlDataAdapter.InsertCommand = sqlCommand;
-                            sqlDataAdapter.UpdateBatchSize = 1000;
-                            sqlDataAdapter.Update(dataTable);
-                            sqlTransaction.Commit();
-                        }
+                        //WriteDataUsingBatchRpc(dataTable, sqlConnection);
+                        WriteDataUsingTvp(dataTable, sqlConnection);
 
                         dataTable.Clear();
                     }
@@ -93,19 +89,59 @@ namespace QueryRunner
             return tasks;
         }
 
+        private static void WriteDataUsingBatchRpc(DataTable dataTable, SqlConnection sqlConnection)
+        {
+            using (var sqlTransaction = sqlConnection.BeginTransaction())
+            {
+                using (var sqlDataAdapter = new SqlDataAdapter())
+                {
+                    using var sqlCommand = GetSqlCommandForBatchRpc(dataTable.TableName);
+                    sqlCommand.Connection = sqlConnection;
+                    sqlCommand.Transaction = sqlTransaction;
+                    sqlDataAdapter.InsertCommand = sqlCommand;
+                    sqlDataAdapter.UpdateBatchSize = 1000;
+                    sqlDataAdapter.Update(dataTable);
+                    sqlTransaction.Commit();
+                }
+            }
+        }
+
+        private static void WriteDataUsingTvp(DataTable dataTable, SqlConnection sqlConnection)
+        {
+            using var sqlCommand = GetSqlCommandForTvp(dataTable.TableName, dataTable);
+            sqlCommand.Connection = sqlConnection;
+            sqlCommand.ExecuteNonQuery();
+        }
+
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>")]
-        private static SqlCommand GetSqlCommand(string tableName)
+        private static SqlCommand GetSqlCommandForBatchRpc(string tableName)
         {
             var sqlCommand = new SqlCommand
             {
+                CommandTimeout = 0,
                 CommandText = "Append" + tableName,
                 CommandType = CommandType.StoredProcedure,
                 UpdatedRowSource = UpdateRowSource.None
             };
-            sqlCommand.Parameters.Add("@Column1", SqlDbType.NVarChar, 50, "Column1");
-            sqlCommand.Parameters.Add("@Column2", SqlDbType.NVarChar, 50, "Column2");
-            sqlCommand.Parameters.Add("@Column3", SqlDbType.NVarChar, 50, "Column3");
+            sqlCommand.Parameters.Add("@Column1", SqlDbType.NVarChar, -1, "Column1");
+            sqlCommand.Parameters.Add("@Column2", SqlDbType.NVarChar, -1, "Column2");
+            sqlCommand.Parameters.Add("@Column3", SqlDbType.NVarChar, -1, "Column3");
 
+            return sqlCommand;
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA2100:Review SQL queries for security vulnerabilities", Justification = "<Pending>")]
+        private static SqlCommand GetSqlCommandForTvp(string tableName, DataTable dataTable)
+        {
+            var sqlCommand = new SqlCommand
+            {
+                CommandTimeout = 0,
+                CommandText = $"Append{tableName}WithTvp",
+                CommandType = CommandType.StoredProcedure,
+                UpdatedRowSource = UpdateRowSource.None
+            };
+            var dataParameter = sqlCommand.Parameters.Add("@Data", SqlDbType.Structured);
+            dataParameter.Value = dataTable;
             return sqlCommand;
         }
     }

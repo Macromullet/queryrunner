@@ -41,4 +41,25 @@ BEGIN
 END
 GO
 
+CREATE TYPE TargetTableTvp AS TABLE
+(
+	Column1 NVARCHAR(50) NOT NULL,
+	Column2 NVARCHAR(50) NOT NULL,
+	Column3 NVARCHAR(50) NOT NULL
+)
+GO
+
+CREATE PROCEDURE [dbo].[AppendTargetTableWithTvp]
+	@Data TargetTableTvp READONLY
+AS
+BEGIN
+	-- SET NOCOUNT ON added to prevent extra result sets from
+	-- interfering with SELECT statements.
+	SET NOCOUNT ON;
+
+    INSERT INTO TargetTable(Column1, Column2, Column3)
+	SELECT * FROM @Data
+END
+GO
+
 
