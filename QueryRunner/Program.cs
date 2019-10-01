@@ -1,8 +1,8 @@
 ﻿using Dapper;
+using Microsoft.Data.SqlClient;
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
@@ -76,8 +76,8 @@ namespace QueryRunner
                     {
                         sqlConnection.Open();
                         sqlConnection.Execute("TRUNCATE TABLE TargetTable");
-                        //WriteDataUsingBatchRpc(dataTable, sqlConnection);
-                        WriteDataUsingTvp(dataTable, sqlConnection);
+                        WriteDataUsingBatchRpc(dataTable, sqlConnection);
+                        //WriteDataUsingTvp(dataTable, sqlConnection);
 
                         dataTable.Clear();
                     }
